@@ -137,15 +137,35 @@ def guess_type(name: str) -> tuple[str, str]:
     return "dtString", "dkDiscrete"
 
 
-def read_text_header(path: Path, max_cols: int = 500) -> list[str]:
-    """Read column names from first line of a delimited text file."""
+def read_text_header(
+    path: Path,
+    max_cols: int = 500,
+    *,
+    encoding: str | None = None,
+    delimiter: str | None = None,
+) -> list[str]:
+    """Read column names from first line of a delimited text file.
+
+    Honours ``encoding`` when the import node has a code page; otherwise tries
+    UTF-8 and falls back to cp1251 so Windows-1251 headers do not turn into
+    replacement characters (and then into ``_`` identifiers).
+    """
     raw = path.read_bytes()
     # strip BOM
     if raw.startswith(b"\xef\xbb\xbf"):
         raw = raw[3:]
-    text = raw.decode("utf-8", errors="replace")
+        text = raw.decode("utf-8", errors="replace")
+    elif encoding:
+        text = raw.decode(encoding, errors="replace")
+    else:
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode("cp1251", errors="replace")
     first = text.splitlines()[0] if text else ""
-    if "\t" in first:
+    if delimiter:
+        cols = first.split(delimiter)
+    elif "\t" in first:
         cols = first.split("\t")
     elif ";" in first:
         cols = first.split(";")
@@ -326,6 +346,27 @@ def inject_column_defs_xml(node_xml: str, columns: list[ColumnSpec]) -> str:
         if empty in node_xml:
             return _clear_input_virgin_xml(node_xml.replace(empty, filled, 1))
     raise ValueError("empty ColumnDefs not found in node XML")
+
+
+def inject_column_defs_blob_seq(
+    node_blob: bytes, column_lists: list[list[ColumnSpec]]
+) -> bytes:
+    """Fill successive empty input ColumnDefs lists (one list per input socket)."""
+    out = node_blob
+    for columns in column_lists:
+        out = inject_column_defs_blob(out, columns)
+    return out
+
+
+def inject_column_defs_xml_seq(
+    node_xml: str, column_lists: list[list[ColumnSpec]]
+) -> str:
+    """Fill successive empty input ColumnDefs elements (one list per input socket)."""
+    out = node_xml
+    for columns in column_lists:
+        out = inject_column_defs_xml(out, columns)
+    return out
+
 
 def _make_spec(
     label: str,

@@ -23,6 +23,8 @@ from .column_config import (  # noqa: E402
     _make_spec,
     inject_column_defs_blob,
     inject_column_defs_xml,
+    inject_column_defs_blob_seq,
+    inject_column_defs_xml_seq,
     read_text_header,
     specs_for_active,
     specs_for_duplicates,
@@ -181,6 +183,9 @@ class NodeRec:
     top: float
     file_name: str = "data.csv"
     columns: list[ColumnSpec] = field(default_factory=list)
+    # Per-input-socket ColumnDefs (in socket document order) for multi-input nodes
+    # like join, whose input ports each carry their own used-field schema.
+    input_columns: list[list[ColumnSpec]] | None = None
     filter_items: list[dict] | None = None
     expressions: list[dict] | None = None
     sort_columns: list | None = None
@@ -398,6 +403,39 @@ def _code_page_for_encoding(encoding: str) -> int | str:
         "cp866": 866,
     }
     return mapping.get(label, encoding)
+
+
+_ENCODING_FOR_CODE_PAGE = {
+    65001: "utf-8",
+    1251: "cp1251",
+    1252: "cp1252",
+    20127: "ascii",
+    866: "cp866",
+}
+
+
+def _header_read_options(upstream) -> dict:
+    """encoding/delimiter for read_text_header from an import node's settings."""
+    settings = (upstream.import_settings if upstream is not None else None) or {}
+    encoding = settings.get("encoding")
+    code_page = settings.get("code_page")
+    if not encoding and code_page is not None:
+        key = int(code_page) if str(code_page).isdigit() else code_page
+        encoding = _ENCODING_FOR_CODE_PAGE.get(key)
+    options: dict = {}
+    if encoding:
+        options["encoding"] = encoding
+    if settings.get("delimiter"):
+        options["delimiter"] = settings["delimiter"]
+    return options
+
+
+def _import_node_for(s, src) -> object | None:
+    """Import node bound to this source file, if any (for code page/delimiter)."""
+    for nd in s.nodes:
+        if nd.component in ("import_text", "import_excel") and str(nd.file_name) == str(src):
+            return nd
+    return None
 
 
 _SPECIAL_FIELDS = frozenset(
@@ -666,7 +704,10 @@ def configure_node(
                         src = up.file_name
                         break
         if src:
-            names = read_text_header(_resolve_source_path(s, src))
+            names = read_text_header(
+                _resolve_source_path(s, src),
+                **_header_read_options(_import_node_for(s, src)),
+            )
         specs = specs_for_duplicates(
             names,
             inputs=inputs,
@@ -692,7 +733,10 @@ def configure_node(
                             break
             if not src:
                 raise ValueError("all_as_input needs source_file or upstream import")
-            names = read_text_header(_resolve_source_path(s, src))
+            names = read_text_header(
+                _resolve_source_path(s, src),
+                **_header_read_options(_import_node_for(s, src)),
+            )
         specs = specs_for_active(names)
         _apply_upstream_types(s, n, specs)
     else:
@@ -713,6 +757,14 @@ def configure_node(
         if n.component != "sorting":
             raise ValueError("sort_columns only valid for sorting nodes")
         n.sort_columns = sort_columns
+        # Loginom stores sort keys both in the engine (SortingColumns) and in the
+        # input DataSource ColumnDefs (utActive). Without the latter the input port
+        # is treated as unconfigured («Порт "Входной источник данных" не настроен»).
+        sort_names = [
+            c if isinstance(c, str) else (c.get("name") or c.get("Name"))
+            for c in sort_columns
+        ]
+        n.columns = specs_for_active(sort_names)
     if ordered_sample is not None:
         if n.component != "outliers":
             raise ValueError("ordered_sample only valid for outliers nodes")
@@ -730,6 +782,20 @@ def configure_node(
             n.join_type = "left"
         if n.join_keys is None:
             n.join_keys = []
+        # Fill each input socket's ColumnDefs with the fields the engine uses:
+        # main keys on the left table, join keys on the right table. Full joins
+        # (no keys) keep empty ColumnDefs, matching real Loginom packages.
+        left_names = [k.get("left") or k.get("Left") for k in n.join_keys]
+        right_names = [k.get("right") or k.get("Right") for k in n.join_keys]
+        left_names = [x for x in left_names if x]
+        right_names = [x for x in right_names if x]
+        if left_names or right_names:
+            n.input_columns = [
+                specs_for_active(left_names) if left_names else [],
+                specs_for_active(right_names) if right_names else [],
+            ]
+        else:
+            n.input_columns = None
 
     if import_settings is not None:
         if n.component not in ("import_text", "import_excel"):
@@ -1824,7 +1890,10 @@ def save_package() -> dict:
             n.top,
             file_name=n.file_name,
         )
-        if n.columns:
+        if n.input_columns:
+            blob = inject_column_defs_blob_seq(blob, n.input_columns)
+            xml = inject_column_defs_xml_seq(xml, n.input_columns)
+        elif n.columns:
             blob = inject_column_defs_blob(blob, n.columns)
             xml = inject_column_defs_xml(xml, n.columns)
         if (
