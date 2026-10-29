@@ -706,6 +706,10 @@ def configure_node(
                 settings["delimiter"] = schema["delimiter"]
         if n.component == "import_excel" and schema.get("sheet_number") is not None:
             settings["sheet_number"] = schema["sheet_number"]
+        if source_file:
+            # Store the real path like the import_settings branch does, so the
+            # saved FileName is not the virgin "data.csv" placeholder.
+            n.file_name = str(resolved)
         n.import_settings = settings
         specs = list(n.columns)
         touched_columns = False
