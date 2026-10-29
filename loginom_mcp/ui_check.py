@@ -47,6 +47,13 @@ _MARKER_BYTES = tuple(m.encode("utf-8") for m in ERROR_MARKERS)
 _TITLE_SEPARATORS = ("/", " · ", " - ")
 
 
+def _hidden_kwargs() -> dict:
+    """Keep helper PowerShell processes from flashing console windows."""
+    if sys.platform != "win32":
+        return {}
+    return {"creationflags": subprocess.CREATE_NO_WINDOW}
+
+
 def _run_ps(script: str, timeout: float = 20.0) -> str:
     try:
         r = subprocess.run(
@@ -66,6 +73,7 @@ def _run_ps(script: str, timeout: float = 20.0) -> str:
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
+            **_hidden_kwargs(),
         )
     except (subprocess.TimeoutExpired, OSError):
         return ""
@@ -122,6 +130,7 @@ def capture_ui_text(timeout_s: float = 6.0) -> str:
             encoding="utf-8",
             errors="replace",
             timeout=timeout_s,
+            **_hidden_kwargs(),
         )
     except (subprocess.TimeoutExpired, OSError):
         return ""
