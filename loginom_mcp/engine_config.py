@@ -20,6 +20,7 @@ if str(VENDOR) not in sys.path:
 
 from bgb_import_node import (  # type: ignore  # noqa: E402
     empty_list,
+    encode_bgb_len,
     field_bool,
     field_char,
     field_guid,
@@ -705,7 +706,8 @@ JT_RIGHT = 2
 JT_FULL = 3
 JT_DIFF = 4
 JOIN_TYPE = {
-    "jtInnerJoin": JT_INNER,
+    "jtJoin": JT_INNER,
+    "jtInnerJoin": JT_INNER,  # legacy alias: Loginom has no such enum element
     "inner": JT_INNER,
     "внутреннее": JT_INNER,
     "jtLeftJoin": JT_LEFT,
@@ -723,7 +725,7 @@ JOIN_TYPE = {
     "разность": JT_DIFF,
 }
 JOIN_TYPE_XML = {
-    JT_INNER: "jtInnerJoin",
+    JT_INNER: "jtJoin",
     JT_LEFT: "jtLeftJoin",
     JT_RIGHT: "jtRightJoin",
     JT_FULL: "jtFullJoin",
@@ -1160,7 +1162,12 @@ def build_import_excel_engine_xml(
 
 def _replace_typed_engine(blob: bytes, classname: bytes, filled_inner: bytes) -> bytes:
     """Replace virgin classname…empty ColumnDefs with filled_inner."""
-    start = blob.find(classname)
+    # The virgin blob stores the class name as a BGB length-prefixed string; the
+    # replacement must consume that prefix too, otherwise the new inner is
+    # prepended with a second copy of it and the stream desyncs on load
+    # («Тип с именем … не найден»).
+    needle = encode_bgb_len(len(classname)) + classname
+    start = blob.find(needle)
     if start < 0:
         raise ValueError(f"{classname.decode()} not found in node blob")
     empty_cd = empty_list("ColumnDefs")

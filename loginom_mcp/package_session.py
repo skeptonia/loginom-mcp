@@ -805,17 +805,38 @@ def configure_node(
             n.join_type = "left"
         if n.join_keys is None:
             n.join_keys = []
-        # Fill each input socket's ColumnDefs with the fields the engine uses:
-        # main keys on the left table, join keys on the right table. Full joins
-        # (no keys) keep empty ColumnDefs, matching real Loginom packages.
+        # Fill each input socket's ColumnDefs with the fields of the upstream
+        # table (Loginom rejects a load with «Порт "Главная таблица" не
+        # настроен» when the socket stays empty). Key columns alone are too
+        # narrow: the join carries all fields downstream.
+        main_node = joined_node = None
+        for lk in s.links:
+            if lk.target_node != n.id:
+                continue
+            tp = lk.target_port_name or ""
+            if tp in ("main", "data"):
+                main_node = s.find_node(lk.source_node)
+            elif tp == "joined":
+                joined_node = s.find_node(lk.source_node)
+        main_names = (
+            list(_node_output_schema(s, main_node.id)) if main_node is not None else []
+        )
+        joined_names = (
+            list(_node_output_schema(s, joined_node.id))
+            if joined_node is not None
+            else []
+        )
+        # explicit join_keys shortcuts only when the upstream is not linked yet
         left_names = [k.get("left") or k.get("Left") for k in n.join_keys]
         right_names = [k.get("right") or k.get("Right") for k in n.join_keys]
         left_names = [x for x in left_names if x]
         right_names = [x for x in right_names if x]
-        if left_names or right_names:
+        left_final = main_names or left_names
+        right_final = joined_names or right_names
+        if left_final or right_final:
             n.input_columns = [
-                specs_for_active(left_names) if left_names else [],
-                specs_for_active(right_names) if right_names else [],
+                specs_for_active(left_final) if left_final else [],
+                specs_for_active(right_final) if right_final else [],
             ]
         else:
             n.input_columns = None

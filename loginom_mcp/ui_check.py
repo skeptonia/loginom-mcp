@@ -459,12 +459,27 @@ def check_package(
         time.sleep(0.4)
 
     time.sleep(1.0)
+    # Loginom shows the «ошибки открытия» dialog a few seconds AFTER the
+    # package window appears, and a single early UI snapshot misses it —
+    # poll the dialog text several times and dismiss what we find.
+    ui_text = ""
+    dialogs: list[str] = []
+    capture_deadline = time.time() + max(4.0, timeout_s * 0.3)
+    while time.time() < capture_deadline:
+        time.sleep(0.8)
+        txt = capture_ui_text()
+        if txt and txt != ui_text:
+            ui_text = txt
+            for d in extract_errors(txt):
+                if d not in dialogs:
+                    dialogs.append(d)
+        if dialogs:
+            dismiss_dialogs()
+            time.sleep(0.6)
     # Loginom logs the real reason ("Ошибка загрузки пакета: ...") even when it
     # shows no dialog at all — the log is the primary source, the UI a fallback.
     log_entries = read_log(since=log_offset)
     log_errors = [e for e in log_entries if e["level"] == "error"]
-    ui_text = capture_ui_text()
-    dialogs = extract_errors(ui_text)
     result["titles"] = titles()
     result["opened"] = opened
     result["log"] = format_entries(log_errors)
