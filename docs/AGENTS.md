@@ -37,6 +37,11 @@ Do **not** reinvent these. They live in `server.py` → `package_session.py`.
 | `inspect_source_schema` | Read an import source (`.txt` / `.csv` / `.xlsx`) and report Name / DisplayName / DataType / DataKind as Loginom will expose them |
 | `save_package` | Write session → `.lgp` |
 | `verify_package` | ZIP/XML/BGB checks; optional Loginom UI on Windows |
+| `lint_lgp` | `Unit.xml` ↔ `Unit.bin` consistency: node/port/link/view GUIDs, port ownership — no Loginom needed |
+| `check_package` | Open a saved `.lgp` in Loginom, read the real error from Loginom's log, dismiss dialogs, close the window, clear the `.lck` |
+| `loginom_log_errors` | Tail of `%APPDATA%/Loginom/*/Logs/app.log`, parsed (level, message, exception, inner exceptions) |
+| `loginom_windows` | Visible Loginom windows (pid + title) |
+| `close_loginom_windows` | Close Loginom windows by title substring (polite close, `force` = Stop-Process) |
 
 **Resources:** `loginom://docs/visualizers`, `loginom://docs/agents`,
 `loginom://docs/contributing`, `loginom://docs/roadmap`.

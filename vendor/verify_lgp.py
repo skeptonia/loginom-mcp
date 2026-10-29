@@ -135,8 +135,11 @@ def verify_structure(lgp: Path, component: str, display_name: str) -> list[str]:
         else:
             hit = next((n for n in nodes if n["display"] == display_name), None)
             if hit is None:
+                # The caller may pass the package name; that is not a node name.
+                # A package that lost nodes is caught by lint_lgp (XML vs BIN).
                 errors.append(
-                    f"display name {display_name!r} not found; have {[n['display'] for n in nodes]}"
+                    f"warning: display name {display_name!r} not found among nodes "
+                    f"{[n['display'] for n in nodes]}"
                 )
             else:
                 if hit["vendor"] != str(meta["vendor"]):
@@ -146,7 +149,7 @@ def verify_structure(lgp: Path, component: str, display_name: str) -> list[str]:
 
         unit_bin = read("Unit_0/Unit.bin")
         if display_name.encode("utf-8") not in unit_bin:
-            errors.append("display name missing in Unit.bin")
+            errors.append(f"warning: display name {display_name!r} missing in Unit.bin")
         if meta["engine"].encode("ascii") not in unit_bin:
             errors.append(f"engine {meta['engine']} missing in Unit.bin")
         if meta["vendor"].bytes_le not in unit_bin:

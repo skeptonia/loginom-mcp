@@ -241,6 +241,11 @@ python3 -m pip install -r requirements.txt
 | `inspect_source_schema` | Прочитать источник (`.txt` / `.csv` / `.xlsx`) и показать Name / DisplayName / DataType / DataKind так, как их увидит Loginom |
 | `save_package` | Записать `.lgp` |
 | `verify_package` | Проверка ZIP/XML/BGB (+ опционально UI Loginom на Windows) |
+| `lint_lgp` | Сверка `Unit.xml` ↔ `Unit.bin`: GUID узлов/портов/связей/визуализаторов, принадлежность портов. Loginom не нужен |
+| `check_package` | Открыть любой `.lgp` в Loginom, прочитать настоящую ошибку из журнала Loginom, закрыть диалоги и окно, снять `.lck` |
+| `loginom_log_errors` | Хвост `%APPDATA%/Loginom/*/Logs/app.log` с разбором (уровень, сообщение, исключение, вложенные ошибки) |
+| `loginom_windows` | Список видимых окон Loginom (pid + заголовок) |
+| `close_loginom_windows` | Закрыть окна Loginom по подстроке заголовка (`force` = Stop-Process) |
 
 **Resources:** `loginom://docs/visualizers`, `loginom://docs/agents`, `loginom://docs/contributing`, `loginom://docs/roadmap`.
 
@@ -265,5 +270,6 @@ python3 -m pip install -r requirements.txt
 - Раздавайте репозиторий целиком (включая `vendor/g6_blobs` и `docs/`). Не удаляйте `vendor/`.
 - `.staging/` и `out/` — локальные кэши; их можно спокойно удалять.
 - `verify_package(open_ui=true)` запускает Loginom только в Windows, если задан или найден `LOGINOM_EXE`; иначе проверяется только структура ZIP/XML/BGB.
+- Если Loginom молча не открывает пакет (окно остаётся на «Начало»), причина всё равно пишется в `%APPDATA%/Loginom/Community/Logs/app.log` — её возвращает `check_package(path)` (или `loginom_log_errors()`). Loginom 7.4 — CEF-приложение и игнорирует `WM_CLOSE`, поэтому окно закрывается через Alt+F4, а `Stop-Process` применяется только к процессу, который запустил сам сервер.
 - Разделитель полей текстового импорта **не** сохраняется в `.lgp` Loginom; в `import_settings` задают кодировку, разделители даты/чисел, лист Excel и типы столбцов.
 - Примеры конфигов: [examples/mcp.json.example](examples/mcp.json.example), [examples/opencode.json.example](examples/opencode.json.example).

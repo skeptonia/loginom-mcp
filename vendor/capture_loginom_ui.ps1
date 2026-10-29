@@ -62,9 +62,9 @@ try {
     )
     $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $winCond)
     foreach ($w in $windows) {
-        $pid = 0
-        try { $pid = $w.Current.ProcessId } catch { continue }
-        if ($pids -notcontains $pid) { continue }
+        $procId = 0
+        try { $procId = $w.Current.ProcessId } catch { continue }
+        if ($pids -notcontains $procId) { continue }
         $title = ""
         try { $title = $w.Current.Name } catch {}
         Write-Output ("UIA_WINDOW: " + $title)

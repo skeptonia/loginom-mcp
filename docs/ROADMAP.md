@@ -30,7 +30,19 @@ MCP tools: `list_loginom_components`, `list_visualizers`, `create_package`,
 `add_node`, `configure_node`, `link_nodes`, `add_visualizer`,
 `configure_visualizer` (table / duplicates filters+sort, chart, cube, statistics,
 quality, cluster profiles, ROC, regression reports, session or saved `.lgp`), `audit_visualizers`, `rename_node`, `get_package`, `inspect_lgp`,
-`inspect_source_schema` (text and `.xlsx`), `save_package`, `verify_package`.
+`inspect_source_schema` (text and `.xlsx`), `save_package`, `verify_package`,
+`lint_lgp`, `check_package`, `loginom_log_errors`, `loginom_windows`,
+`close_loginom_windows`.
+
+Diagnostics: a package that Loginom refuses to open leaves no useful dialog in
+7.4 (the window silently stays on the start page), but the real reason is in
+`%APPDATA%/Loginom/Community/Logs/app.log`:
+`Ошибка загрузки пакета: не удалось загрузить элемент "Variables"` →
+`Элемент конфигурации с именем Variables не найден` (`EBGAggregateException`).
+`check_package(path)` opens the file, diffs the log by byte offset and returns
+those entries; `loginom_log_errors()` reads the tail on demand. Loginom is CEF:
+`WM_CLOSE` is ignored, so closing uses Alt+F4 and only falls back to
+`Stop-Process` for a process this server started itself.
 
 Libraries: virgin visualizers + `VISUALIZERS.md` + `vendor/viz_configure.py` +
 `tools/inspect_viz.py`.

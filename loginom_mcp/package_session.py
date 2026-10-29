@@ -2096,7 +2096,7 @@ def save_package() -> dict:
 
 def verify_package(open_ui: bool = True, close_after: bool = True) -> dict:
     """Save if needed, validate .lgp; optionally open Loginom UI (Windows only)."""
-    from paths import ui_verify_available
+    from .paths import ui_verify_available
 
     s = get_session()
     if s.saved_path is None or not s.saved_path.exists():

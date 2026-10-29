@@ -19,6 +19,7 @@ if str(_ROOT / "vendor") not in sys.path:
 from mcp.server.mcpserver import MCPServer
 
 from loginom_mcp import package_session as api
+from loginom_mcp import lgp_lint, ui_check
 from loginom_mcp.components import list_components
 from loginom_mcp.visualizers import list_visualizers as _list_visualizers
 
@@ -26,6 +27,14 @@ _INSTRUCTIONS = """\
 Loginom .lgp builder. Workflow: create_package → add_node → configure_node → link_nodes \
 → add_visualizer → configure_visualizer → save_package → verify_package. \
 audit_visualizers(path) checks a saved .lgp for empty views and wrong field names.
+
+CHECKING A SAVED PACKAGE: lint_lgp(path) compares Unit.xml with Unit.bin (GUIDs, \
+ports, links) and needs no Loginom. check_package(path) opens the package in Loginom, \
+reads Loginom's own log for the real failure reason («Ошибка загрузки пакета: …»), \
+dismisses any dialog, closes the window and clears the .lck. \
+loginom_log_errors() shows the raw tail of that log; loginom_windows() / \
+close_loginom_windows(pattern) list and close leftover windows. \
+Never leave a modal Loginom dialog or a locked .lgp on the user's desktop.
 
 CRITICAL — visualizers: add_visualizer attaches a VIRGIN view (empty Series / \
 Dimensions / ViewColumns). configure_visualizer fills table/duplicates columns, \
@@ -507,6 +516,86 @@ def verify_package(open_ui: bool = True, close_after: bool = True) -> str:
         close_after: Close Loginom after the check (when open_ui was used).
     """
     return _ok(api.verify_package(open_ui=open_ui, close_after=close_after))
+
+
+@mcp.tool()
+@_safe
+def check_package(
+    path: str,
+    open_ui: bool = True,
+    close_after: bool = True,
+    timeout_s: float = 16.0,
+) -> str:
+    """Open any saved .lgp in Loginom, read error dialogs, close the window.
+
+    Use this to see *why* Loginom refuses a package («Атрибут не существует»,
+    «не удалось загрузить элемент …») without leaving a modal dialog or a .lck
+    file on the desktop. Works on packages built by this server and by hand.
+
+    Args:
+        path: Path to the .lgp.
+        open_ui: Open Loginom (False = only check that the file exists).
+        close_after: Close the Loginom window and clear the .lck afterwards.
+        timeout_s: How long to wait for the package window to appear.
+    """
+    return _ok(
+        ui_check.check_package(
+            path, open_ui=open_ui, close_after=close_after, timeout_s=timeout_s
+        )
+    )
+
+
+@mcp.tool()
+@_safe
+def loginom_windows() -> str:
+    """List visible Loginom windows (pid + title) that may be left hanging."""
+    return _ok({"windows": ui_check.windows()})
+
+
+@mcp.tool()
+@_safe
+def close_loginom_windows(pattern: str | None = None, force: bool = False) -> str:
+    """Close Loginom windows (all, or those whose title contains ``pattern``).
+
+    Args:
+        pattern: Title substring (e.g. the package name). None = every window.
+        force: Stop-Process instead of a polite WM_CLOSE when the window ignores it.
+    """
+    return _ok(ui_check.close_windows(pattern=pattern, force=force))
+
+
+@mcp.tool()
+@_safe
+def loginom_log_errors(level: str | None = "error", limit: int = 50) -> str:
+    """Read the tail of Loginom's own log (app.log), decoded and parsed.
+
+    This is where Loginom writes the real reason a package failed to load
+    («Ошибка загрузки пакета: не удалось загрузить элемент …») even when it
+    shows no dialog at all.
+
+    Args:
+        level: "error", "warn", "info", or None for every level.
+        limit: How many of the last entries to return.
+    """
+    entries = ui_check.read_log(limit=limit, level=level)
+    return _ok(
+        {
+            "log": str(ui_check.log_path()),
+            "entries": entries,
+            "formatted": ui_check.format_entries(entries),
+        }
+    )
+
+
+@mcp.tool()
+@_safe
+def lint_lgp(path: str) -> str:
+    """Check that Unit.xml and Unit.bin agree (GUIDs, links, ports) — no Loginom needed.
+
+    Catches packages that are a valid ZIP with valid XML but whose binary no
+    longer matches the XML, which Loginom reports as «Атрибут не существует».
+    """
+    return _ok(lgp_lint.lint(path))
 
 
 @mcp.tool()
